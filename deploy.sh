@@ -18,9 +18,9 @@ echo "[2/3] Docker Image Built Successfully."
 # Ask user if they want to run it locally
 read -p "Do you want to run the container locally now? (y/n): " run_locally
 if [ "$run_locally" == "y" ]; then
-    echo "Starting container on http://localhost:5000..."
-    docker run -d -p 5000:5000 -e GROQ_API_KEY=$GROQ_API_KEY --name $IMAGE_NAME $FULL_IMAGE_NAME
-    echo "Container is running at http://localhost:5000"
+    echo "Starting container on http://localhost:5001..."
+    docker run -d -p 5001:5000 -e GROQ_API_KEY=$GROQ_API_KEY --name $IMAGE_NAME $FULL_IMAGE_NAME
+    echo "Container is running at http://localhost:5001"
 fi
 
 # Ask user if they want to push to DockerHub
