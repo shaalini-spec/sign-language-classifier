@@ -3,14 +3,14 @@ import io
 from flask import Flask, request, jsonify, render_template
 from PIL import Image
 from transformers import pipeline
-import google.generativeai as genai
+from groq import Groq
 
 app = Flask(__name__)
 
-# --- 1. ML/DL Model Setup (Inference Engine) ---
+# --- 1. ML/DL Model Setup (Inference Engine via Hugging Face Transformers) ---
 print("Loading ASL Classification Model...")
 try:
-    # Using a Vision Transformer finetuned for Sign Language (ASL alphabet)
+    # Vision Transformer finetuned for Sign Language (ASL alphabet)
     classifier = pipeline("image-classification", model="dima806/image_classification_sign_language")
 except Exception as e:
     print(f"Warning: Failed to load specific model. Using fallback. Error: {e}")
@@ -18,72 +18,80 @@ except Exception as e:
 print("ML Model Loaded successfully.")
 
 
-# --- 2. GenAI / Agentic AI Setup ---
-# Configure Google Gemini
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    llm_model = genai.GenerativeModel('gemini-1.5-flash')
+# --- 2. GenAI / Agentic AI Setup (Groq Inference Engine) ---
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+if GROQ_API_KEY:
+    groq_client = Groq(api_key=GROQ_API_KEY)
 else:
-    print("WARNING: GEMINI_API_KEY environment variable not set. LLM features will be simulated.")
-    llm_model = None
+    print("WARNING: GROQ_API_KEY environment variable not set. LLM features will be simulated.")
+    groq_client = None
+
 
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
 
+
 @app.route('/predict', methods=['POST'])
 def predict():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part provided'}), 400
-    
+
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
-    
+
     try:
-        # Read the image
+        # Read and classify the image
         img_bytes = file.read()
         image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        
+
         # 1. Run ML Inference
         predictions = classifier(image)
-        # Get the top prediction
         top_prediction = predictions[0]
         sign_label = top_prediction['label'].upper()
         confidence = top_prediction['score']
-        
-        # 2. Agentic AI Integration
+
+        # 2. Agentic AI via Groq
         llm_report = ""
-        if llm_model:
-            prompt = f"""
-            You are an educational AI helping someone learn American Sign Language (ASL).
-            Our computer vision model has detected that the user signed the letter/word: '{sign_label}'.
-            
-            Please provide:
-            1. A very brief congratulatory message.
-            2. Two common, conversational English sentences that start with or prominently feature the letter/word '{sign_label}' to help them understand context.
-            
-            Keep the response encouraging, concise, and format it nicely in Markdown.
-            """
+        if groq_client:
+            prompt = f"""You are an educational AI helping someone learn American Sign Language (ASL).
+Our computer vision model has detected that the user signed the letter/word: '{sign_label}'.
+
+Please provide:
+1. A brief, warm congratulatory message (1 sentence).
+2. Two simple, conversational English sentences that start with or prominently feature the letter/word '{sign_label}', to help the user build vocabulary and context.
+
+Format your response in Markdown. Keep it encouraging and concise."""
+
             try:
-                response = llm_model.generate_content(prompt)
-                llm_report = response.text
+                chat_completion = groq_client.chat.completions.create(
+                    messages=[{"role": "user", "content": prompt}],
+                    model="llama-3.1-8b-instant",
+                )
+                llm_report = chat_completion.choices[0].message.content
             except Exception as e:
-                llm_report = f"Error generating report with Gemini: {str(e)}"
+                llm_report = f"Error generating report with Groq: {str(e)}"
         else:
-            # Simulated Response if no API key is provided
-            llm_report = f"**Simulation Mode:**\nGreat job! You signed the letter **{sign_label}**. \n\nHere are some sentences:\n- **{sign_label}** is for Apple. An apple a day keeps the doctor away.\n- Are you ready to learn the next letter? (Set GEMINI_API_KEY to see real AI reports)."
-            
+            # Simulated response when no API key is provided
+            llm_report = (
+                f"**Simulation Mode (No API Key):**\n\n"
+                f"Great job! You signed the letter **{sign_label}**.\n\n"
+                f"- **{sign_label}** is for Apple. An apple a day keeps the doctor away.\n"
+                f"- Are you ready to learn the next letter?\n\n"
+                f"*(Set GROQ_API_KEY to see real AI-generated reports.)*"
+            )
+
         return jsonify({
             'sign': sign_label,
             'confidence': f"{confidence:.2%}",
             'ai_context': llm_report
         })
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 if __name__ == '__main__':
-    # Containerized apps should run on 0.0.0.0
     app.run(host='0.0.0.0', port=5000, debug=True)
+
