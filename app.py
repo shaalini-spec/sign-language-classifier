@@ -11,7 +11,7 @@ app = Flask(__name__)
 print("Loading ASL Classification Model...")
 try:
     # Vision Transformer finetuned for Sign Language (ASL alphabet)
-    classifier = pipeline("image-classification", model="dima806/image_classification_sign_language")
+    classifier = pipeline("image-classification", model="RavenOnur/Sign-Language")
 except Exception as e:
     print(f"Warning: Failed to load specific model. Using fallback. Error: {e}")
     classifier = pipeline("image-classification", model="microsoft/resnet-50")
