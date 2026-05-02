@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASL Sign Language Classifier</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-container">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"></path><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"></path><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"></path><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"></path></svg>
+            </div>
+            <h1>Sign Language Translator</h1>
+            <p class="subtitle">Interactive ASL Learning (SDG 4: Quality Education)</p>
+        </header>
+
+        <main>
+            <div class="upload-card">
+                <h2>Practice Your Signs</h2>
+                <p>Upload a clear photo of your hand making an ASL alphabet sign.</p>
+                
+                <form id="uploadForm">
+                    <div class="file-input-wrapper">
+                        <input type="file" id="fileInput" name="file" accept="image/*" required>
+                        <label for="fileInput" id="fileLabel">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                            <span>Choose an image...</span>
+                        </label>
+                    </div>
+                    
+                    <div id="imagePreview" class="hidden">
+                        <img id="preview" src="" alt="Image Preview">
+                    </div>
+
+                    <button type="submit" id="submitBtn" class="btn-primary" disabled>
+                        <span>Translate Sign</span>
+                        <div class="loader hidden" id="btnLoader"></div>
+                    </button>
+                </form>
+            </div>
+
+            <div id="resultCard" class="result-card hidden">
+                <div class="result-header">
+                    <h2>Detected Sign:</h2>
+                    <div class="letter-badge" id="signBadge">A</div>
+                </div>
+                
+                <div class="confidence-meter">
+                    <div class="confidence-label">
+                        <span>AI Confidence</span>
+                        <span id="confidenceText">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="confidenceFill" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="ai-report">
+                    <h3>Conversational Context</h3>
+                    <div id="aiExplanation" class="markdown-content">
+                        <!-- Content injected via JS -->
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Empowering inclusive communication through AI.</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileLabel = document.querySelector('#fileLabel span');
+        const imagePreview = document.getElementById('imagePreview');
+        const preview = document.getElementById('preview');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnLoader = document.getElementById('btnLoader');
+        const resultCard = document.getElementById('resultCard');
+        const signBadge = document.getElementById('signBadge');
+        const confidenceText = document.getElementById('confidenceText');
+        const confidenceFill = document.getElementById('confidenceFill');
+        const aiExplanation = document.getElementById('aiExplanation');
+
+        fileInput.addEventListener('change', function(e) {
+            if (this.files && this.files[0]) {
+                const file = this.files[0];
+                fileLabel.textContent = file.name;
+                submitBtn.disabled = false;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    imagePreview.classList.remove('hidden');
+                }
+                reader.readAsDataURL(file);
+                
+                resultCard.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!fileInput.files[0]) return;
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            submitBtn.disabled = true;
+            submitBtn.querySelector('span').textContent = 'Translating...';
+            btnLoader.classList.remove('hidden');
+            resultCard.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    // Display results
+                    signBadge.textContent = data.sign;
+                    
+                    confidenceText.textContent = data.confidence;
+                    confidenceFill.style.width = data.confidence;
+                    
+                    // Parse markdown from Gemini
+                    aiExplanation.innerHTML = marked.parse(data.ai_context);
+                    
+                    resultCard.classList.remove('hidden');
+                    resultCard.scrollIntoView({ behavior: 'smooth' });
+                }
+            } catch (err) {
+                alert('An error occurred during prediction.');
+                console.error(err);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.querySelector('span').textContent = 'Translate Sign';
+                btnLoader.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
