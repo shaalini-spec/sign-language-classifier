@@ -14,14 +14,8 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir --timeout=300 --retries=5 \
     torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
 
-# Step 2: Install remaining dependencies
-RUN pip install --no-cache-dir --timeout=300 --retries=5 \
-    Flask==3.0.3 \
-    Werkzeug==3.0.3 \
-    transformers==4.40.1 \
-    Pillow==10.3.0 \
-    groq==0.9.0 \
-    gunicorn==22.0.0
+# Step 2: Install remaining dependencies from requirements.txt
+RUN pip install --no-cache-dir --timeout=300 --retries=5 -r requirements.txt
 
 # Copy the current directory contents into the container at /app
 COPY . /app/
